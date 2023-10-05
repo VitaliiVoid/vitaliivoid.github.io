@@ -1,0 +1,390 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://vk.com/js/api/openapi.js?154" type="text/javascript"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-circle-progress/dist/circle-progress.min.js" type="module"></script>
+
+<body>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <label for="groups">Группы:</label>
+            <input type="text" id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" value="kortsov_photo club5411357">
+            <button id="vkGetData" disabled>Получить данные</button>
+        </div>
+        <div>
+            <label for="interval">Интервал:</label>
+            <input type="text" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
+            <label for="api_id">Api ID:</label>
+            <input type="text" id="vkApiId" name="api_id" value="51762493">
+            <button id="vkLogin">Войти</button>
+        </div>
+    </div>
+    <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
+    <div id="page">
+        <div id="table-container"></div>
+        <div><canvas id="vkAgeChart"></canvas></div>
+        <div><canvas id="vkSexChart"></canvas></div>
+    </div>
+
+    <style>
+        circle-progress::part(base) {
+            width: 25%;
+            height: auto;
+        }
+
+        circle-progress {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .legend {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-box {
+            width: 10px;
+            height: 10px;
+            margin-right: 5px;
+        }
+
+        table {
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            text-align: left;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        td {
+            text-align: left;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .last-row {
+            font-weight: bold;
+            font-size: 24px;
+        }
+    </style>
+
+<script>
+let sexChart = null;
+let ageChart = null;
+$(document).ready(function () {
+    function unlock_get_data_button() {
+        state = 1;
+        document.getElementById("vkGetData").disabled = false;
+        document.getElementById("vkLogin").innerHTML = "Выйти";
+    }
+
+    let state = 0;
+
+    VK.init({
+        apiId: document.getElementById("vkApiId").value,
+    });
+
+    VK.Auth.getLoginStatus(function(response) {
+        if (response.status === 'connected') {
+            unlock_get_data_button();
+        }
+    });
+
+    $('#vkLogin').on('click', function () {
+        if (state === 0) {
+            VK.Auth.login(
+                function (response) { unlock_get_data_button(); },
+                VK.access.PHOTOS
+            );
+        } else {
+            VK.Auth.logout(function (response) {
+                state = 0;
+                document.getElementById("vkGetData").disabled = true;
+                document.getElementById("vkLogin").innerHTML = "Войти";
+            });
+        }
+    });
+
+    function calc_age(d, m, y) {
+        const birthdate = new Date(`${y}-${m}-${d}`);
+        const today = new Date();
+        const one_or_zero = (today.getMonth() < birthdate.getMonth()) ||
+                            (today.getMonth() === birthdate.getMonth() &&
+                            today.getDate() < birthdate.getDate());
+        let year_difference = today.getFullYear() - birthdate.getFullYear();
+        const age = year_difference - one_or_zero;
+        return age;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function create_age_chart(ages) {
+        let xValues = ["18 - 25 года", "25 - 34 года", "35 - 44 года", "45 - 54 года", "55 лет и старше", "Остальные"];
+        let all = ages['Age18'] + ages['Age25'] + ages['Age35'] + ages['Age45'] + ages['Age55'] + ages['AgeOther'];
+        let mul = 100 / all;
+        let legendValues = [
+            `18 - 25 года: ${ages['Age18']}(${Math.round(ages['Age18'] * mul)}%)`,
+            `25 - 34 года: ${ages['Age25']}(${Math.round(ages['Age25'] * mul)}%)`,
+            `35 - 44 года: ${ages['Age35']}(${Math.round(ages['Age35'] * mul)}%)`,
+            `45 - 54 года: ${ages['Age45']}(${Math.round(ages['Age45'] * mul)}%)`,
+            `55 лет и старше: ${ages['Age55']}(${Math.round(ages['Age55'] * mul)}%)`,
+            `Остальные: ${ages['AgeOther']}(${Math.round(ages['AgeOther'] * mul)}%)`,
+            `Возраст не указан: ${ages['AgeUnknown']}`,
+        ];
+        let yValues = [ages['Age18'], ages['Age25'], ages['Age35'], ages['Age45'], ages['Age55'], ages['AgeOther']];
+        let barColors = [
+            "#b91d47",
+            "#00aba9",
+            "#2b5797",
+            "#e8c3b9",
+            "#1e7145",
+            "#585858"
+        ];
+        let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
+        ageChart = create_chart("vkAgeChart", "Возраст", data);
+        add_legend('vkAgeChart', data, legendValues);
+    }
+
+    function create_sex_chart(sexes) {
+        let xValues = ["Мужчины", "Женщины"];
+        let all = sexes['M'] + sexes['W'];
+        let mul = 100 / all;
+        let legendValues = [
+            `Мужчины: ${sexes['M']}(${Math.round(sexes['M'] * mul)}%)`,
+            `Женщины: ${sexes['W']}(${Math.round(sexes['W'] * mul)}%)`,
+            `Пол не указан: ${sexes['U']}`,
+        ];
+        let yValues = [sexes['M'], sexes['W']];
+        let barColors = [
+            "#00aba9",
+            "#b91d47",
+        ];
+        let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
+        sexChart = create_chart("vkSexChart", "Пол", data);
+        add_legend('vkSexChart', data, legendValues);
+    }
+
+    function create_chart(id, title, data) {
+        return new Chart(id, {
+            type: "pie",
+            data: data,
+            options: {
+                title: { display: true, text: title },
+                cutoutPercentage: 25,
+                legend: { display: false },
+            }
+        });
+    }
+
+    function add_legend(id, data, values) {
+        let legendContainer = document.createElement('div');
+        legendContainer.classList.add('legend');
+
+        values.forEach(function(label, index) {
+            let legendItem = document.createElement('div');
+            legendItem.classList.add('legend-item');
+
+            let legendBox = document.createElement('div');
+            legendBox.classList.add('legend-box');
+            legendBox.style.backgroundColor = data.datasets[0].backgroundColor[index];
+
+            let legendText = document.createElement('span');
+            legendText.textContent = label;
+
+            legendItem.appendChild(legendBox);
+            legendItem.appendChild(legendText);
+            legendContainer.appendChild(legendItem);
+        });
+        document.getElementById(id).parentNode.appendChild(legendContainer);
+    }
+
+    function remove_charts() {
+        const tableContainer = document.getElementById("table-container");
+        tableContainer.innerHTML = '';
+        const legends = document.getElementsByClassName("legend");
+        while (legends.length > 0) {
+            legends[0].parentNode.removeChild(legends[0]);
+        }
+        if (sexChart) {
+            sexChart.destroy();
+             sexChart = null;
+        }
+        if (ageChart) {
+            ageChart.destroy();
+            ageChart = null;
+        }
+    }
+
+    function get_members(ids, ages, sexes, infos, all_members, interval, offset = 0) {
+        VK.Api.call('groups.getMembers', { v: '5.154', group_id: ids.slice(-1), offset: offset }, function (res) {
+            let user_ids = res.response.items.join(', ');
+            VK.Api.call('users.get', { user_ids: user_ids, v: '5.154', fields: 'sex, bdate' }, function (r) {
+                for (const [key, value] of Object.entries(r.response)) {
+                    switch (value["sex"]) {
+                        case 1:
+                            sexes["W"] += 1;
+                            break;
+                        case 2:
+                            sexes["M"] += 1;
+                            break;
+                        default:
+                            sexes["U"] += 1;
+                    }
+                    if ('bdate' in value) {
+                        parts = value["bdate"].split('.');
+                        if (parts.length === 3) {
+                            let age = calc_age(parts[0], parts[1], parts[2]);
+                            if (18 <= age && age <= 24) {
+                                ages['Age18'] += 1;
+                            } else if (25 <= age && age <= 34) {
+                                ages['Age25'] += 1;
+                            } else if (35 <= age && age <= 44) {
+                                ages['Age35'] += 1;
+                            } else if (45 <= age && age <= 54) {
+                                ages['Age45'] += 1;
+                            } else if (age >= 55) {
+                                ages['Age55'] += 1;
+                            } else {
+                                ages['AgeOther'] += 1;
+                            }
+                        } else {
+                            ages['AgeUnknown'] += 1;
+                        }
+                    } else {
+                        ages['AgeUnknown'] += 1;
+                    }
+                }
+                let all = sexes['M'] + sexes['W'] + sexes['U'];
+                document.getElementById("progress").value = all * 100 / all_members;
+                if (offset < res.response.count) {
+                    sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval, offset + 1000) });
+                } else if (ids.length > 1) {
+                    ids.pop();
+                    sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval) });
+                } else {
+                    document.getElementById("progress").style.display = "none";
+                    create_table(infos);
+                    create_age_chart(ages);
+                    create_sex_chart(sexes);
+                }
+            });
+        });
+    }
+
+    function create_table(infos) {
+        let table = document.createElement("table");
+
+        let thead = document.createElement("thead");
+        table.appendChild(thead);
+
+        let headerRow = document.createElement("tr");
+        thead.appendChild(headerRow);
+
+        let headerCell1 = document.createElement("th");
+        headerCell1.textContent = "№";
+        headerRow.appendChild(headerCell1);
+
+        let headerCell2 = document.createElement("th");
+        headerCell2.textContent = "Название группы";
+        headerRow.appendChild(headerCell2);
+
+        let headerCell3 = document.createElement("th");
+        headerCell3.textContent = "Ссылка";
+        headerRow.appendChild(headerCell3);
+
+        let headerCell4 = document.createElement("th");
+        headerCell4.textContent = "Количество пользователей";
+        headerRow.appendChild(headerCell4);
+
+        let tbody = document.createElement("tbody");
+        table.appendChild(tbody);
+
+        for (const [key, info] of Object.entries(infos)) {
+            let row = document.createElement("tr");
+            let cell1 = document.createElement("td");
+            cell1.textContent = info["index"]
+            row.appendChild(cell1);
+
+            let cell2 = document.createElement("td");
+            cell2.textContent = info["name"];
+            row.appendChild(cell2);
+
+            let cell3 = document.createElement("td");
+            let link = document.createElement("a");
+            link.href = info["url"];
+            link.textContent = "Ссылка";
+            cell3.appendChild(link);
+            row.appendChild(cell3);
+
+            let cell4 = document.createElement("td");
+            cell4.textContent = info["count"];
+            row.appendChild(cell4);
+
+            tbody.appendChild(row);
+        }
+
+        let totalUsersCount = infos.reduce(function(sum, row) {
+            return sum + row.count;
+        }, 0);
+
+        let totalRow = document.createElement("tr");
+        totalRow.className = 'last-row';
+        let totalCell = document.createElement("td");
+        totalCell.textContent = "Всего пользователей: ";
+        totalCell.colSpan = 3;
+        totalRow.appendChild(totalCell);
+        totalCell = document.createElement("td");
+        totalCell.textContent = totalUsersCount;
+        totalCell.colSpan = 1;
+        totalRow.appendChild(totalCell);
+        tbody.appendChild(totalRow);
+
+        let tableContainer = document.getElementById("table-container");
+        tableContainer.appendChild(table);
+    }
+
+    function get_groups_info(ids, ages, sexes, infos, interval) {
+        VK.Api.call('groups.getById', { v: '5.154', group_ids: ids.join(", "), fields: 'members_count' }, function (r) {
+            let all_members = 0;
+            for (const [key, value] of Object.entries(r.response.groups)) {
+                all_members += value["members_count"];
+                infos.push({ index: parseInt(key) + 1, name: value["name"], count: value["members_count"], url: "https://vk.com/" + value["screen_name"] });
+            }
+            sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval) });
+        });
+    }
+
+    $('#vkGetData').on('click', function () {
+        remove_charts();
+        let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
+        let sexes = { 'U': 0, 'W': 0, 'M': 0 };
+        let infos = [];
+        let ids = document.getElementById("vkIds").value.split(' ');
+        let progress = document.getElementById("progress");
+        progress.value = 0;
+        progress.style.display = "flex";
+        let interval = parseInt(document.getElementById("vkInterval").value);
+        get_groups_info(ids, ages, sexes, infos, interval);
+    });
+});
+
+</script>
+
+</body>
