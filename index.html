@@ -21,7 +21,10 @@
             <button id="vkLogin">Войти</button>
         </div>
     </div>
-    <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
+    <div id="progress-div">
+        <span id="progress-label">Идет загрузка данных, подождите...</span>
+        <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
+    </div>
     <div id="page">
         <div id="table-container"></div>
         <div><canvas id="vkAgeChart"></canvas></div>
@@ -29,13 +32,27 @@
     </div>    
 
     <style>
+        #progress-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-weight: bold;
+            font-size: 24px;            
+        }
+
         circle-progress::part(base) {
-            width: 25%;
+            width: 200%;
             height: auto;
         }
 
-        circle-progress {
+        #progress-div {
             display: none;
+            flex-direction: column;
+            align-items: center;            
+        }
+
+        circle-progress {
+            display: flex;
             flex-direction: column;
             align-items: center;
         }
@@ -305,7 +322,7 @@ $(document).ready(function () {
                     ids.pop();
                     sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
                 } else {
-                    document.getElementById("progress").style.display = "none";
+                    document.getElementById("progress-div").style.display = "none";
                     create_table(infos);
                     create_age_chart(ages);
                     create_sex_chart(sexes);
@@ -399,7 +416,7 @@ $(document).ready(function () {
             sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
         });
     }
-    
+
     function is_id(id) {
         const is_num = /^\d+$/;
         return is_num.test(id);
@@ -427,7 +444,7 @@ $(document).ready(function () {
 
         return true;
     }
-    
+
     $('#vkGetData').on('click', function () {
         remove_charts();
         let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
@@ -437,7 +454,7 @@ $(document).ready(function () {
         user_ids_to_txt = '';
         document.getElementById('save_page').disabled = true;
         document.getElementById('save_ids').disabled = true;
-        let ids = document.getElementById("vkIds").value.split(' ');
+        let ids = document.getElementById("vkIds").value.split(' ').filter(elm => elm);
         let wrong_ids = [];
         ids.forEach(function(id) {
             if (!is_valid_group_id(id)) {
@@ -445,9 +462,8 @@ $(document).ready(function () {
             }
         });
         if (wrong_ids.length === 0) {
-            let progress = document.getElementById("progress");
-            progress.value = 0;
-            progress.style.display = "flex";
+            document.getElementById("progress").value = 0;
+            document.getElementById("progress-div").style.display = "flex";
             let interval = parseInt(document.getElementById("vkInterval").value);
             get_groups_info(ids, user_ids, ages, sexes, infos, interval);
         } else {
