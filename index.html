@@ -16,9 +16,15 @@
         <div>
             <label for="interval">Интервал:</label>
             <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
-            <label for="api_id">Api ID:</label>
-            <input type="number" id="vkApiId" name="api_id" value="51764139">
             <button id="vkLogin">Войти</button>
+        </div>
+    </div>
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <p>Введите API ID:</p>
+            <input type="number" id="api_id_input" value="51764139">
+            <button onclick="submit_api_id()">Отправить</button>
         </div>
     </div>
     <div id="progress-div">
@@ -100,43 +106,102 @@
         .last-row {
             font-weight: bold;
             font-size: 24px;
-        }        
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+        }
+
+        .close-btn {
+            float: right;
+            cursor: pointer;
+        }
     </style>
 
 <script>
 let sexChart = null;
 let ageChart = null;
 let user_ids_to_txt = '';
-$(document).ready(function () {
-    function unlock_get_data_button() {
-        state = 1;
-        document.getElementById("vkGetData").disabled = false;
-        document.getElementById("vkLogin").innerHTML = "Выйти";
-    }
+let state = 0;
 
-    let state = 0;
+function submit_api_id() {
+    let api_id = document.getElementById("api_id_input").value;
+    document.getElementById("myModal").style.display = "none";
 
-    VK.init({
-        apiId: document.getElementById("vkApiId").value,
-    });
+    VK.init({ apiId: api_id, });
 
     VK.Auth.getLoginStatus(function(response) {
         if (response.status === 'connected') {
             unlock_get_data_button();
-        }
-    });
-
-    $('#vkLogin').on('click', function () {
-        if (state === 0) {
+        } else {
             VK.Auth.login(
                 function (response) { unlock_get_data_button(); },
                 VK.access.PHOTOS
-            );            
+            );
+        }
+    });                
+}
+
+function unlock_get_data_button() {
+    state = 1;
+    document.getElementById("vkGetData").disabled = false;
+    document.getElementById("vkLogin").innerHTML = "Выйти";
+}
+
+function lock_get_data_button() {
+    state = 0;
+    document.getElementById("vkGetData").disabled = true;
+    document.getElementById("vkLogin").innerHTML = "Войти";
+}
+
+$(document).ready(function () {
+    function init_api(id) {
+        VK.init({
+            apiId: id,
+        });
+
+        VK.Auth.getLoginStatus(function(response) {
+            if (response.status === 'connected') {
+                unlock_get_data_button();
+            }
+        });
+    }
+
+    init_api(document.getElementById("api_id_input").value);
+
+    $('#vkLogin').on('click', function () {
+        if (state === 0) {
+            let modal = document.getElementById("myModal");
+            let close_btn = document.getElementsByClassName("close-btn")[0];
+            modal.style.display = "block";
+            close_btn.onclick = function() {
+                modal.style.display = "none";
+            }
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
         } else {
             VK.Auth.logout(function (response) {
-                state = 0;
-                document.getElementById("vkGetData").disabled = true;
-                document.getElementById("vkLogin").innerHTML = "Войти";
+                lock_get_data_button();
             });
         }   
     });
