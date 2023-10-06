@@ -1,3 +1,10 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VKAnalyzer</title>
+</head>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://vk.com/js/api/openapi.js?154" type="text/javascript"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
@@ -5,38 +12,43 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <body>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; height: 100%;">
+        <!-- <canvas style="flex-grow: 1;">Здесь ваш canvas контент</canvas> -->
+        <div id="myModal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn">&times;</span>
+                <p>Введите API ID:</p>
+                <input type="number" id="api_id_input" value="51764139">
+                <button onclick="submit_api_id()">Отправить</button>
+            </div>
+        </div>
+        <div id="progress-div">
+            <span id="progress-label">Идет загрузка данных, подождите...</span>
+            <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
+        </div>
+        <div id="page" style="flex-grow: 1;">
+            <div id="table-container"></div>
+            <div><canvas id="vkAgeChart"></canvas></div>
+            <div><canvas id="vkSexChart"></canvas></div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-left: 20px;">
+            <button id="vkLogin">Войти</button>
+
+            <label for="interval">Интервал:</label>
+            <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
+
             <label for="groups">Группы:</label>
-            <input type="text" id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" value="kortsov_photo club5411357">
+            <textarea id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" rows="4">
+kortsov_photo
+club5411357
+            </textarea>
+
             <button id="vkGetData" disabled>Получить данные</button>
             <button id="save_page" disabled>Сохранить в PDF</button>
             <button id="save_ids" disabled>Сохранить ID пользователей</button>
         </div>
-        <div>
-            <label for="interval">Интервал:</label>
-            <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
-            <button id="vkLogin">Войти</button>
-        </div>
     </div>
-    <div id="myModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <p>Введите API ID:</p>
-            <input type="number" id="api_id_input" value="51764139">
-            <button onclick="submit_api_id()">Отправить</button>
-        </div>
-    </div>
-    <div id="progress-div">
-        <span id="progress-label">Идет загрузка данных, подождите...</span>
-        <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
-    </div>
-    <div id="page">
-        <div id="table-container"></div>
-        <div><canvas id="vkAgeChart"></canvas></div>
-        <div><canvas id="vkSexChart"></canvas></div>
-    </div>    
-
     <style>
         #progress-label {
             display: flex;
@@ -519,10 +531,14 @@ $(document).ready(function () {
         user_ids_to_txt = '';
         document.getElementById('save_page').disabled = true;
         document.getElementById('save_ids').disabled = true;
-        let ids = document.getElementById("vkIds").value.split(' ').filter(elm => elm);
+        let ids = [];
+        document.getElementById("vkIds").value.split(/\s+/).filter(elm => elm).forEach(function (url) {
+            ids.push(url.split('/').slice(-1)[0].trim());
+        });
         let wrong_ids = [];
-        ids.forEach(function(id) {
+        ids.forEach(function (id) {
             if (!is_valid_group_id(id)) {
+                print(id);
                 wrong_ids.push(id);
             }
         });
