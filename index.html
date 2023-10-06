@@ -11,6 +11,7 @@
             <input type="text" id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" value="kortsov_photo club5411357">
             <button id="vkGetData" disabled>Получить данные</button>
             <button id="save_page" disabled>Сохранить в PDF</button>
+            <button id="save_ids" disabled>Сохранить ID пользователей</button>
         </div>
         <div>
             <label for="interval">Интервал:</label>
@@ -88,6 +89,7 @@
 <script>
 let sexChart = null;
 let ageChart = null;
+let user_ids_to_txt = '';
 $(document).ready(function () {
     function unlock_get_data_button() {
         state = 1;
@@ -133,6 +135,15 @@ $(document).ready(function () {
             jsPDF:        { format: [width, height], unit: 'px' }
         };
         html2pdf().set(opt).from(element).save()        
+    });
+
+    $('#save_ids').on('click', function () {
+        const link = document.createElement("a");
+        const file = new Blob([user_ids_to_txt], { type: 'text/plain' });
+        link.href = URL.createObjectURL(file);
+        link.download = "ids.txt";
+        link.click();
+        URL.revokeObjectURL(link.href);
     });
 
     function calc_age(d, m, y) {
@@ -247,10 +258,10 @@ $(document).ready(function () {
         }
     }
 
-    function get_members(ids, ages, sexes, infos, all_members, interval, offset = 0) {
+    function get_members(ids, user_ids, ages, sexes, infos, all_members, interval, offset = 0) {
         VK.Api.call('groups.getMembers', { v: '5.154', group_id: ids.slice(-1), offset: offset }, function (res) {
-            let user_ids = res.response.items.join(', ');
-            VK.Api.call('users.get', { user_ids: user_ids, v: '5.154', fields: 'sex, bdate' }, function (r) {
+            user_ids = user_ids.concat(res.response.items);
+            VK.Api.call('users.get', { user_ids: res.response.items.join(', '), v: '5.154', fields: 'sex, bdate' }, function (r) {
                 for (const [key, value] of Object.entries(r.response)) {
                     switch (value["sex"]) {
                         case 1:
@@ -289,16 +300,18 @@ $(document).ready(function () {
                 let all = sexes['M'] + sexes['W'] + sexes['U'];
                 document.getElementById("progress").value = all * 100 / all_members;
                 if (offset < res.response.count) {
-                    sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval, offset + 1000) });
+                    sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval, offset + 1000) });
                 } else if (ids.length > 1) {
                     ids.pop();
-                    sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval) });
+                    sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
                 } else {
                     document.getElementById("progress").style.display = "none";
                     create_table(infos);
                     create_age_chart(ages);
                     create_sex_chart(sexes);
+                    user_ids_to_txt = [... new Set(user_ids)].join('\n');
                     document.getElementById('save_page').disabled = false;
+                    document.getElementById('save_ids').disabled = false;
                 }
             });
         });
@@ -376,14 +389,14 @@ $(document).ready(function () {
         tableContainer.appendChild(table);
     }
 
-    function get_groups_info(ids, ages, sexes, infos, interval) {
+    function get_groups_info(ids, user_ids, ages, sexes, infos, interval) {
         VK.Api.call('groups.getById', { v: '5.154', group_ids: ids.join(", "), fields: 'members_count' }, function (r) {
             let all_members = 0;
             for (const [key, value] of Object.entries(r.response.groups)) {
                 all_members += value["members_count"];
                 infos.push({ index: parseInt(key) + 1, name: value["name"], count: value["members_count"], url: "https://vk.com/" + value["screen_name"] });
             }
-            sleep(interval).then(() => { get_members(ids, ages, sexes, infos, all_members, interval) });
+            sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
         });
     }
 
@@ -392,13 +405,16 @@ $(document).ready(function () {
         let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
         let sexes = { 'U': 0, 'W': 0, 'M': 0 };
         let infos = [];
+        let user_ids = [];
+        user_ids_to_txt = '';
         document.getElementById('save_page').disabled = true;
+        document.getElementById('save_ids').disabled = true;
         let ids = document.getElementById("vkIds").value.split(' ');
         let progress = document.getElementById("progress");
         progress.value = 0;
         progress.style.display = "flex";
         let interval = parseInt(document.getElementById("vkInterval").value);
-        get_groups_info(ids, ages, sexes, infos, interval);
+        get_groups_info(ids, user_ids, ages, sexes, infos, interval);
     });    
 });
 
