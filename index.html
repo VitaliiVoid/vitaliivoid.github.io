@@ -399,7 +399,35 @@ $(document).ready(function () {
             sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
         });
     }
+    
+    function is_id(id) {
+        const is_num = /^\d+$/;
+        return is_num.test(id);
+    }
 
+    function is_valid_group_id(id) {
+        if (is_id(id)) {
+            return true;
+        }
+
+        if (id.length < 5 || id.length > 32) {
+            return false;
+        }
+
+        const regex = /^[a-zA-Z0-9_]+$/;
+        if (!regex.test(id)) {
+            return false;
+        }
+
+        const firstChar = id.charAt(0);
+        const firstCharRegex = /^[a-zA-Z]+$/;
+        if (!firstCharRegex.test(firstChar)) {
+            return false;
+        }
+
+        return true;
+    }
+    
     $('#vkGetData').on('click', function () {
         remove_charts();
         let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
@@ -410,11 +438,21 @@ $(document).ready(function () {
         document.getElementById('save_page').disabled = true;
         document.getElementById('save_ids').disabled = true;
         let ids = document.getElementById("vkIds").value.split(' ');
-        let progress = document.getElementById("progress");
-        progress.value = 0;
-        progress.style.display = "flex";
-        let interval = parseInt(document.getElementById("vkInterval").value);
-        get_groups_info(ids, user_ids, ages, sexes, infos, interval);
+        let wrong_ids = [];
+        ids.forEach(function(id) {
+            if (!is_valid_group_id(id)) {
+                wrong_ids.push(id);
+            }
+        });
+        if (wrong_ids.length === 0) {
+            let progress = document.getElementById("progress");
+            progress.value = 0;
+            progress.style.display = "flex";
+            let interval = parseInt(document.getElementById("vkInterval").value);
+            get_groups_info(ids, user_ids, ages, sexes, infos, interval);
+        } else {
+            alert(`Невалидные идентификаторы групп: ${wrong_ids.join(', ')}`);
+        }
     });    
 });
 
