@@ -402,7 +402,7 @@ $(document).ready(function () {
                     create_table(infos);
                     create_age_chart(ages);
                     create_sex_chart(sexes);
-                    user_ids_to_txt = [... new Set(user_ids)].join('\n');
+                    user_ids_to_txt = [... new Set(user_ids)].join('\r\n');
                     document.getElementById('save_page').disabled = false;
                     document.getElementById('save_ids').disabled = false;
                 }
