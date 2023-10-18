@@ -8,213 +8,223 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://vk.com/js/api/openapi.js?154" type="text/javascript"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/js-circle-progress/dist/circle-progress.min.js" type="module"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+<style>
+#all {
+    display: flex;
+    justify-content: space-between;
+}
+
+#controls {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 35%;
+    margin: 0 auto;
+}
+
+#items {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px
+}
+
+#page {
+    display: none;
+}
+
+#progress {
+    display: none;
+    font-weight: bold;
+    font-size: 24px;
+    align-items: stretch;
+    text-align: center;
+    width: 100%;
+}
+
+.legend {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.legend-box {
+    width: 10px;
+    height: 10px;
+    margin-right: 5px;
+}
+
+table {
+    width: 100%;
+    font-family: Arial, sans-serif;
+}
+
+th {
+    background-color: #f2f2f2;
+    text-align: left;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+td {
+    text-align: left;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+.last-row {
+    font-weight: bold;
+    font-size: 24px;
+}
+
+#myModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    z-index: 1;
+}
+
+#modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 10px;
+}
+
+#close-btn {
+    float: right;
+    cursor: pointer;
+}
+
+#vkLogout {
+    display: none;
+}
+</style>
+
 <body>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; height: 100%;">
-        <div id="myModal" class="modal">
-            <div class="modal-content">
-                <span class="close-btn">&times;</span>
-                <p>Введите API ID:</p>
+    <div id="all">
+        <div id="myModal">
+            <div id="modal-content">
+                <span id="close-btn">&times;</span>
+                <p>Введите API ID(идентификатор приложения, получается при регистрации приложения):</p>
                 <input type="number" id="api_id_input" value="51764139">
                 <button onclick="submit_api_id()">Отправить</button>
             </div>
         </div>
-        <div id="progress-div">
-            <span id="progress-label">Идет загрузка данных, подождите...</span>
-            <circle-progress id="progress" value="0" max="100" text-format="percent"></circle-progress>
-        </div>
-        <div id="page" style="flex-grow: 1;">
-            <div id="table-container"></div>
-            <div><canvas id="vkAgeChart"></canvas></div>
-            <div><canvas id="vkSexChart"></canvas></div>
+
+        <div id="page">
+            <div id="table-container" style="width: 100%;"></div>
+            <div><canvas id="vkAgeChart" style="width: 100%;"></canvas></div>
+            <div><canvas id="vkSexChart" style="width: 100%;"></canvas></div>
         </div>
 
-        <div style="display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-left: 20px;">
+        <div id="controls">
             <button id="vkLogin">Войти</button>
+            <div id="items">
+                <label for="interval">Интервал:</label>
+                <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
 
-            <label for="interval">Интервал:</label>
-            <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
-
-            <label for="groups">Группы:</label>
-            <textarea id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" rows="4">
+                <label for="groups">Группы:</label>
+                <textarea id="vkIds" name="groups" placeholder="ID или имена групп, через пробел" rows="4">
 https://vk.com/kortsov_photo
 club5411357
-            </textarea>
+                </textarea>
 
-            <button id="vkGetData" disabled>Получить данные</button>
-            <button id="save_page" disabled>Сохранить в PDF</button>
-            <button id="save_ids" disabled>Сохранить ID пользователей</button>
+                <button id="vkGetData">Получить данные</button>
+                <button id="save_page">Сохранить в PDF</button>
+                <button id="save_ids">Сохранить ID пользователей</button>
+            </div>
+            <button id="vkLogout">Выйти</button>
+            <span id="progress">Идет загрузка данных: 0%</span>
         </div>
     </div>
-    <style>
-        #progress-label {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-weight: bold;
-            font-size: 24px;            
-        }
-
-        circle-progress::part(base) {
-            width: 200%;
-            height: auto;
-        }
-
-        #progress-div {
-            display: none;
-            flex-direction: column;
-            align-items: center;            
-        }
-
-        circle-progress {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .legend {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 5px;
-        }
-
-        .legend-box {
-            width: 10px;
-            height: 10px;
-            margin-right: 5px;
-        }
-
-        table {
-            width: 100%;
-            font-family: Arial, sans-serif;
-        }
-
-        th {
-            background-color: #f2f2f2;
-            text-align: left;
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-
-        td {
-            text-align: left;
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-
-        .last-row {
-            font-weight: bold;
-            font-size: 24px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            z-index: 1;
-        }
-
-        .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 10px;
-        }
-
-        .close-btn {
-            float: right;
-            cursor: pointer;
-        }
-    </style>
-
 <script>
 let sexChart = null;
 let ageChart = null;
 let user_ids_to_txt = '';
-let state = 0;
 
 function submit_api_id() {
     let api_id = document.getElementById("api_id_input").value;
     document.getElementById("myModal").style.display = "none";
 
-    VK.init({ apiId: api_id, });
-
     VK.Auth.getLoginStatus(function(response) {
         if (response.status === 'connected') {
-            unlock_get_data_button();
+            show_controls();
         } else {
             VK.Auth.login(
-                function (response) { unlock_get_data_button(); },
-                VK.access.PHOTOS
+                function (session) {
+                    show_controls();
+                },
             );
         }
     });                
 }
 
-function unlock_get_data_button() {
-    state = 1;
-    document.getElementById("vkGetData").disabled = false;
-    document.getElementById("vkLogin").innerHTML = "Выйти";
+function show_controls() {
+    document.getElementById("items").style.display = "flex";
+    document.getElementById("vkLogin").style.display = "none";
+    document.getElementById("vkLogout").style.display = "block";
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        document.getElementById("all").style.flexDirection = "column";
+        document.getElementById("controls").style.width = "100%";
+    } else {
+        document.getElementById("all").style.flexDirection = "row";
+    }    
 }
 
-function lock_get_data_button() {
-    state = 0;
-    document.getElementById("vkGetData").disabled = true;
-    document.getElementById("vkLogin").innerHTML = "Войти";
+function hide_controls() {
+    document.getElementById("items").style.display = "none";
+    document.getElementById("vkLogin").style.display = "block";
+    document.getElementById("vkLogout").style.display = "none";
 }
 
 $(document).ready(function () {
-    function init_api(id) {
-        VK.init({
-            apiId: id,
-        });
+    VK.init({ apiId: document.getElementById("api_id_input").value });
 
-        VK.Auth.getLoginStatus(function(response) {
-            if (response.status === 'connected') {
-                unlock_get_data_button();
-            }
-        });
-    }
-
-    init_api(document.getElementById("api_id_input").value);
+    VK.Auth.getLoginStatus(function(response) {
+        if (response.status === 'connected') { show_controls(); }
+    });
 
     $('#vkLogin').on('click', function () {
-        if (state === 0) {
-            let modal = document.getElementById("myModal");
-            let close_btn = document.getElementsByClassName("close-btn")[0];
-            modal.style.display = "block";
-            close_btn.onclick = function() {
+        let modal = document.getElementById("myModal");
+        let close_btn = document.getElementsByClassName("close-btn")[0];
+        modal.style.display = "block";
+        close_btn.onclick = function() {
+            modal.style.display = "none";
+        }
+        window.onclick = function(event) {
+            if (event.target == modal) {
                 modal.style.display = "none";
             }
-            window.onclick = function(event) {
-                if (event.target == modal) {
-                    modal.style.display = "none";
-                }
-            }
-        } else {
-            VK.Auth.logout(function (response) {
-                lock_get_data_button();
-            });
-        }   
+        }
+    });
+
+    $('#vkLogout').on('click', function () {
+        VK.Auth.logout(function (response) {
+            document.getElementById("page").style.display = "none";
+            document.getElementById("controls").style.margin = "0 auto";
+            hide_controls();
+        });
     });
 
     $('#save_page').on('click', function () {
@@ -391,20 +401,24 @@ $(document).ready(function () {
                     }
                 }
                 let all = sexes['M'] + sexes['W'] + sexes['U'];
-                document.getElementById("progress").value = all * 100 / all_members;
+                document.getElementById("progress").innerHTML = "Идет загрузка данных: " + String(Math.floor(all * 100 / all_members)) + "%";
                 if (offset < res.response.count) {
                     sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval, offset + 1000) });
                 } else if (ids.length > 1) {
                     ids.pop();
                     sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
                 } else {
-                    document.getElementById("progress-div").style.display = "none";
+                    document.getElementById("progress").style.display = "none";
+                    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                        document.getElementById("controls").style.margin = "0 auto";
+                    } else {
+                        document.getElementById("controls").style.margin = "0 0 0 0";
+                    }
                     create_table(infos);
                     create_age_chart(ages);
                     create_sex_chart(sexes);
                     user_ids_to_txt = [... new Set(user_ids)].join('\r\n');
-                    document.getElementById('save_page').disabled = false;
-                    document.getElementById('save_ids').disabled = false;
+                    document.getElementById('page').style.display = "block";
                 }
             });
         });
@@ -528,8 +542,7 @@ $(document).ready(function () {
         let infos = [];
         let user_ids = [];
         user_ids_to_txt = '';
-        document.getElementById('save_page').disabled = true;
-        document.getElementById('save_ids').disabled = true;
+        document.getElementById('page').style.display = "none";
         let ids = [];
         document.getElementById("vkIds").value.split(/\s+/).filter(elm => elm).forEach(function (url) {
             ids.push(url.split('/').slice(-1)[0].trim());
@@ -542,8 +555,8 @@ $(document).ready(function () {
             }
         });
         if (wrong_ids.length === 0) {
-            document.getElementById("progress").value = 0;
-            document.getElementById("progress-div").style.display = "flex";
+            document.getElementById("progress").innerHTML = "Идет загрузка данных: 0%";
+            document.getElementById("progress").style.display = "block";
             let interval = parseInt(document.getElementById("vkInterval").value);
             get_groups_info(ids, user_ids, ages, sexes, infos, interval);
         } else {
