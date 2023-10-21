@@ -5,24 +5,38 @@
     <title>VKAnalyzer</title>
 </head>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-<script src="https://vk.com/js/api/openapi.js?154" type="text/javascript"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
 <style>
 #all {
     display: flex;
     justify-content: space-between;
 }
 
-#controls {
+.controls {
     display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
     width: 35%;
+}
+
+.controls_when_chart_invisible {
     margin: 0 auto;
+}
+
+.controls_when_chart_visible {
+    margin: 0 0 0 0;
+}
+
+@media (max-width: 768px) {
+    #all {
+        flex-direction: column;
+    }
+    .controls {
+        width: 100%;
+    }
+    .controls_when_chart_visible {
+        margin: 0 auto;
+    }
 }
 
 #items {
@@ -85,12 +99,12 @@ tr:nth-child(even) {
     background-color: #f2f2f2;
 }
 
-.last-row {
+#last-row {
     font-weight: bold;
     font-size: 24px;
 }
 
-#myModal {
+#api-id-dialog {
     display: none;
     position: fixed;
     top: 0;
@@ -116,14 +130,14 @@ tr:nth-child(even) {
     cursor: pointer;
 }
 
-#vkLogout {
+#logout {
     display: none;
 }
 </style>
 
 <body>
     <div id="all">
-        <div id="myModal">
+        <div id="api-id-dialog">
             <div id="modal-content">
                 <span id="close-btn">&times;</span>
                 <p>Введите API ID(идентификатор приложения, получается при регистрации приложения):</p>
@@ -138,8 +152,8 @@ tr:nth-child(even) {
             <div><canvas id="vkSexChart" style="width: 100%;"></canvas></div>
         </div>
 
-        <div id="controls">
-            <button id="vkLogin">Войти</button>
+        <div id="controls" class="controls controls_when_chart_invisible">
+            <button id="login" onclick="login_clicked()">Войти</button>
             <div id="items">
                 <label for="interval">Интервал:</label>
                 <input type="number" id="vkInterval" name="interval" placeholder="Интервал, мсек" value="500">
@@ -150,427 +164,455 @@ https://vk.com/kortsov_photo
 club5411357
                 </textarea>
 
-                <button id="vkGetData">Получить данные</button>
-                <button id="save_page">Сохранить в PDF</button>
-                <button id="save_ids">Сохранить ID пользователей</button>
+                <button id="get_data" onclick="get_data_clicked()">Получить данные</button>
+                <button id="save_pdf" onclick="save_pdf_clicked()">Сохранить в PDF</button>
+                <button id="save_txt" onclick="save_txt_clicked()">Сохранить ID пользователей</button>
             </div>
-            <button id="vkLogout">Выйти</button>
+            <button id="logout" onclick="logout_clicked()">Выйти</button>
             <span id="progress">Идет загрузка данных: 0%</span>
         </div>
     </div>
+
+<script src="https://vk.com/js/api/openapi.js?154" type="text/javascript"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
 <script>
 let sexChart = null;
 let ageChart = null;
 let user_ids_to_txt = '';
 
-function submit_api_id() {
-    let api_id = document.getElementById("api_id_input").value;
-    document.getElementById("myModal").style.display = "none";
+VK.init({ apiId: document.getElementById("api_id_input").value });
 
-    VK.Auth.getLoginStatus(function(response) {
-        if (response.status === 'connected') {
-            show_controls();
-        } else {
-            VK.Auth.login(
-                function (session) {
-                    show_controls();
-                },
-            );
-        }
-    });                
-}
+VK.Auth.getLoginStatus(function(response) {
+    if (response.status === 'connected') { show_control_buttons(); }
+});
 
-function show_controls() {
+function show_control_buttons() {
     document.getElementById("items").style.display = "flex";
-    document.getElementById("vkLogin").style.display = "none";
-    document.getElementById("vkLogout").style.display = "block";
-    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-        document.getElementById("all").style.flexDirection = "column";
-        document.getElementById("controls").style.width = "100%";
-    } else {
-        document.getElementById("all").style.flexDirection = "row";
-    }
+    document.getElementById("login").style.display = "none";
+    document.getElementById("logout").style.display = "block";
 }
 
-function hide_controls() {
+function hide_control_buttons() {
     document.getElementById("items").style.display = "none";
-    document.getElementById("vkLogin").style.display = "block";
-    document.getElementById("vkLogout").style.display = "none";
-    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-        document.getElementById("all").style.flexDirection = "column";
-        document.getElementById("controls").style.width = "100%";
-    } else {
-        document.getElementById("all").style.flexDirection = "row";
+    document.getElementById("login").style.display = "block";
+    document.getElementById("logout").style.display = "none";
+}
+
+/**
+ * Create age chart
+ * 
+ * @param {dict} ages — dictionay of user ages by groups
+  *
+ */
+function create_age_chart(ages) {
+    let xValues = ["18 - 25 года", "25 - 34 года", "35 - 44 года", "45 - 54 года", "55 лет и старше", "Остальные"];
+    let all = ages['Age18'] + ages['Age25'] + ages['Age35'] + ages['Age45'] + ages['Age55'] + ages['AgeOther'];
+    let mul = 100 / all;
+    let legendValues = [
+        `18 - 25 года: ${ages['Age18']}(${Math.round(ages['Age18'] * mul)}%)`, 
+        `25 - 34 года: ${ages['Age25']}(${Math.round(ages['Age25'] * mul)}%)`, 
+        `35 - 44 года: ${ages['Age35']}(${Math.round(ages['Age35'] * mul)}%)`, 
+        `45 - 54 года: ${ages['Age45']}(${Math.round(ages['Age45'] * mul)}%)`, 
+        `55 лет и старше: ${ages['Age55']}(${Math.round(ages['Age55'] * mul)}%)`,
+        `Остальные: ${ages['AgeOther']}(${Math.round(ages['AgeOther'] * mul)}%)`,
+        `Возраст не указан: ${ages['AgeUnknown']}`,
+    ];
+    let yValues = [ages['Age18'], ages['Age25'], ages['Age35'], ages['Age45'], ages['Age55'], ages['AgeOther']];
+    let barColors = [
+        "#b91d47",
+        "#00aba9",
+        "#2b5797",
+        "#e8c3b9",
+        "#1e7145",
+        "#585858"
+    ];
+    let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
+    ageChart = create_chart("vkAgeChart", "Возраст", data);
+    add_chart_legend('vkAgeChart', data, legendValues);                  
+}
+
+/**
+ * Create age chart
+ * 
+ * @param {dict} sexes — dictionay of user sexes by groups
+ *
+ */
+function create_sex_chart(sexes) {
+    let xValues = ["Мужчины", "Женщины"];
+    let all = sexes['M'] + sexes['W'];
+    let mul = 100 / all;
+    let legendValues = [
+        `Мужчины: ${sexes['M']}(${Math.round(sexes['M'] * mul)}%)`, 
+        `Женщины: ${sexes['W']}(${Math.round(sexes['W'] * mul)}%)`, 
+        `Пол не указан: ${sexes['U']}`, 
+    ];
+    let yValues = [sexes['M'], sexes['W']];
+    let barColors = [
+        "#00aba9",
+        "#b91d47",
+    ];
+    let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
+    sexChart = create_chart("vkSexChart", "Пол", data);        
+    add_chart_legend('vkSexChart', data, legendValues);
+}
+
+/**
+ * Create chart
+ * 
+ * @param {String} id — chart's id
+ * @param {String} id — chart's title
+ * @param {dict} data — chart's data
+ * @returns {Chart}
+ */
+function create_chart(id, title, data) {
+    return new Chart(id, {
+        type: "pie",
+        data: data,
+        options: { 
+            title: { display: true, text: title },
+            cutoutPercentage: 25,
+            legend: { display: false },
+        }
+    });
+}
+
+/**
+ * Add legend to chart
+ * 
+ * @param {String} id — chart's id
+ * @param {dict} data — chart's data
+ * @param {dict} values — legend values
+ */
+function add_chart_legend(id, data, values) {
+    let legendContainer = document.createElement('div');
+    legendContainer.classList.add('legend');
+
+    values.forEach(function(label, index) {
+        let legendItem = document.createElement('div');
+        legendItem.classList.add('legend-item');
+
+        let legendBox = document.createElement('div');
+        legendBox.classList.add('legend-box');
+        legendBox.style.backgroundColor = data.datasets[0].backgroundColor[index];
+
+        let legendText = document.createElement('span');
+        legendText.textContent = label;
+
+        legendItem.appendChild(legendBox);
+        legendItem.appendChild(legendText);
+        legendContainer.appendChild(legendItem);
+    });
+    document.getElementById(id).parentNode.appendChild(legendContainer);
+}
+
+function remove_charts() {
+    const tableContainer = document.getElementById("table-container");
+    tableContainer.innerHTML = '';
+    const legends = document.getElementsByClassName("legend");
+    while (legends.length > 0) {
+        legends[0].parentNode.removeChild(legends[0]);
+    }
+    if (sexChart) { 
+        sexChart.destroy();
+            sexChart = null;
+    }
+    if (ageChart) {
+        ageChart.destroy();
+        ageChart = null;
     }
 }
 
-$(document).ready(function () {
-    VK.init({ apiId: document.getElementById("api_id_input").value });
+function create_row(item) {
+    return `
+        <tr>
+            <td>${item["index"]}</td>
+            <td><a href="${item["url"]}">${item["name"]}</a></td>
+            <td>${item["count"]}</td>
+        </tr>
+    `;
+}
 
-    VK.Auth.getLoginStatus(function(response) {
-        if (response.status === 'connected') { show_controls(); }
-    });
+function create_table(data) {
+    let total = data.reduce(function(sum, row) {
+        return sum + row.count;
+    }, 0);
+    return `
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Группа</th>
+                    <th>Количество пользователей</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${data.map(item => create_row(item)).join("")}
+                <tr id="last-row">
+                    <td colspan="2">Всего пользователей:</td>
+                    <td>${total}</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+}
 
-    $('#vkLogin').on('click', function () {
-        let modal = document.getElementById("myModal");
-        let close_btn = document.getElementsByClassName("close-btn")[0];
-        modal.style.display = "block";
-        close_btn.onclick = function() {
-            modal.style.display = "none";
-        }
-        window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
-    });
-
-    $('#vkLogout').on('click', function () {
-        VK.Auth.logout(function (response) {
-            document.getElementById("page").style.display = "none";
-            document.getElementById("controls").style.margin = "0 auto";
-            hide_controls();
-        });
-    });
-
-    $('#save_page').on('click', function () {
-        let element = document.getElementById('page');
-        const {width,height} = element.getBoundingClientRect();
-        let opt = {
-            margin:       1,
-            filename:     'myfile.pdf',
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { dpi: 192, letterRendering: true },
-            jsPDF:        { format: [width, height], unit: 'px' }
-        };
-        html2pdf().set(opt).from(element).save()        
-    });
-
-    $('#save_ids').on('click', function () {
-        const link = document.createElement("a");
-        const file = new Blob([user_ids_to_txt], { type: 'text/plain' });
-        link.href = URL.createObjectURL(file);
-        link.download = "ids.txt";
-        link.click();
-        URL.revokeObjectURL(link.href);
-    });
-
-    function calc_age(d, m, y) {
-        const birthdate = new Date(`${y}-${m}-${d}`);
-        const today = new Date();
-        const one_or_zero = (today.getMonth() < birthdate.getMonth()) ||
-                            (today.getMonth() === birthdate.getMonth() &&
-                            today.getDate() < birthdate.getDate());
-        let year_difference = today.getFullYear() - birthdate.getFullYear();
-        const age = year_difference - one_or_zero;
-        return age;
-    }
-
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    function create_age_chart(ages) {
-        let xValues = ["18 - 25 года", "25 - 34 года", "35 - 44 года", "45 - 54 года", "55 лет и старше", "Остальные"];
-        let all = ages['Age18'] + ages['Age25'] + ages['Age35'] + ages['Age45'] + ages['Age55'] + ages['AgeOther'];
-        let mul = 100 / all;
-        let legendValues = [
-            `18 - 25 года: ${ages['Age18']}(${Math.round(ages['Age18'] * mul)}%)`, 
-            `25 - 34 года: ${ages['Age25']}(${Math.round(ages['Age25'] * mul)}%)`, 
-            `35 - 44 года: ${ages['Age35']}(${Math.round(ages['Age35'] * mul)}%)`, 
-            `45 - 54 года: ${ages['Age45']}(${Math.round(ages['Age45'] * mul)}%)`, 
-            `55 лет и старше: ${ages['Age55']}(${Math.round(ages['Age55'] * mul)}%)`,
-            `Остальные: ${ages['AgeOther']}(${Math.round(ages['AgeOther'] * mul)}%)`,
-            `Возраст не указан: ${ages['AgeUnknown']}`,
-        ];
-        let yValues = [ages['Age18'], ages['Age25'], ages['Age35'], ages['Age45'], ages['Age55'], ages['AgeOther']];
-        let barColors = [
-            "#b91d47",
-            "#00aba9",
-            "#2b5797",
-            "#e8c3b9",
-            "#1e7145",
-            "#585858"
-        ];
-        let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
-        ageChart = create_chart("vkAgeChart", "Возраст", data);
-        add_legend('vkAgeChart', data, legendValues);                  
-    }
-
-    function create_sex_chart(sexes) {
-        let xValues = ["Мужчины", "Женщины"];
-        let all = sexes['M'] + sexes['W'];
-        let mul = 100 / all;
-        let legendValues = [
-            `Мужчины: ${sexes['M']}(${Math.round(sexes['M'] * mul)}%)`, 
-            `Женщины: ${sexes['W']}(${Math.round(sexes['W'] * mul)}%)`, 
-            `Пол не указан: ${sexes['U']}`, 
-        ];
-        let yValues = [sexes['M'], sexes['W']];
-        let barColors = [
-            "#00aba9",
-            "#b91d47",
-        ];
-        let data = { labels: xValues, datasets: [{ backgroundColor: barColors, data: yValues }] };
-        sexChart = create_chart("vkSexChart", "Пол", data);        
-        add_legend('vkSexChart', data, legendValues);
-    }
-
-    function create_chart(id, title, data) {
-        return new Chart(id, {
-            type: "pie",
-            data: data,
-            options: { 
-                title: { display: true, text: title },
-                cutoutPercentage: 25,
-                legend: { display: false },
-            }
-        });
-    }
-
-    function add_legend(id, data, values) {
-        let legendContainer = document.createElement('div');
-        legendContainer.classList.add('legend');
-
-        values.forEach(function(label, index) {
-            let legendItem = document.createElement('div');
-            legendItem.classList.add('legend-item');
-
-            let legendBox = document.createElement('div');
-            legendBox.classList.add('legend-box');
-            legendBox.style.backgroundColor = data.datasets[0].backgroundColor[index];
-
-            let legendText = document.createElement('span');
-            legendText.textContent = label;
-
-            legendItem.appendChild(legendBox);
-            legendItem.appendChild(legendText);
-            legendContainer.appendChild(legendItem);
-        });
-        document.getElementById(id).parentNode.appendChild(legendContainer);
-    }
-
-    function remove_charts() {
-        const tableContainer = document.getElementById("table-container");
-        tableContainer.innerHTML = '';
-        const legends = document.getElementsByClassName("legend");
-        while (legends.length > 0) {
-            legends[0].parentNode.removeChild(legends[0]);
-        }
-        if (sexChart) { 
-            sexChart.destroy();
-             sexChart = null;
-        }
-        if (ageChart) {
-            ageChart.destroy();
-            ageChart = null;
-        }
-    }
-
-    function get_members(ids, user_ids, ages, sexes, infos, all_members, interval, offset = 0) {
-        VK.Api.call('groups.getMembers', { v: '5.154', group_id: ids.slice(-1), offset: offset }, function (res) {
-            user_ids = user_ids.concat(res.response.items);
-            VK.Api.call('users.get', { user_ids: res.response.items.join(', '), v: '5.154', fields: 'sex, bdate' }, function (r) {
-                for (const [key, value] of Object.entries(r.response)) {
-                    switch (value["sex"]) {
-                        case 1:
-                            sexes["W"] += 1;
-                            break;
-                        case 2:
-                            sexes["M"] += 1;
-                            break;
-                        default:
-                            sexes["U"] += 1;
-                    }
-                    if ('bdate' in value) {
-                        parts = value["bdate"].split('.');
-                        if (parts.length === 3) {
-                            let age = calc_age(parts[0], parts[1], parts[2]);
-                            if (18 <= age && age <= 24) {
-                                ages['Age18'] += 1;
-                            } else if (25 <= age && age <= 34) {
-                                ages['Age25'] += 1;
-                            } else if (35 <= age && age <= 44) {
-                                ages['Age35'] += 1;
-                            } else if (45 <= age && age <= 54) {
-                                ages['Age45'] += 1;
-                            } else if (age >= 55) {
-                                ages['Age55'] += 1;
-                            } else {
-                                ages['AgeOther'] += 1;
-                            }
+/**
+ * Get users of group
+ * 
+ * @param {array} ids — group ids
+ * @param {array} user_ids — list of the all user ids, out
+ * @param {dict} ages — list of ages of the group's members, out
+ * @param {dict} sexes — list of sexes of the group's members, out
+ * @param {dict} infos — raw data
+ * @param {number} people_count — count of people
+ * @param {number} interval — delay interval
+ * @param {number} offset — offset from which users are read
+ */
+function get_group_members(ids, user_ids, ages, sexes, infos, people_count, interval, offset = 0) {
+    VK.Api.call('groups.getMembers', { v: '5.154', group_id: ids.slice(-1), offset: offset }, function (res) {
+        user_ids = user_ids.concat(res.response.items);
+        VK.Api.call('users.get', { user_ids: res.response.items.join(', '), v: '5.154', fields: 'sex, bdate' }, function (r) {
+            for (const [key, value] of Object.entries(r.response)) {
+                switch (value["sex"]) {
+                    case 1:
+                        sexes["W"] += 1;
+                        break;
+                    case 2:
+                        sexes["M"] += 1;
+                        break;
+                    default:
+                        sexes["U"] += 1;
+                }
+                if ('bdate' in value) {
+                    parts = value["bdate"].split('.');
+                    if (parts.length === 3) {
+                        let age = calc_age(parts[0], parts[1], parts[2]);
+                        if (18 <= age && age <= 24) {
+                            ages['Age18'] += 1;
+                        } else if (25 <= age && age <= 34) {
+                            ages['Age25'] += 1;
+                        } else if (35 <= age && age <= 44) {
+                            ages['Age35'] += 1;
+                        } else if (45 <= age && age <= 54) {
+                            ages['Age45'] += 1;
+                        } else if (age >= 55) {
+                            ages['Age55'] += 1;
                         } else {
-                            ages['AgeUnknown'] += 1;
+                            ages['AgeOther'] += 1;
                         }
                     } else {
                         ages['AgeUnknown'] += 1;
                     }
-                }
-                let all = sexes['M'] + sexes['W'] + sexes['U'];
-                document.getElementById("progress").innerHTML = "Идет загрузка данных: " + String(Math.floor(all * 100 / all_members)) + "%";
-                if (offset < res.response.count) {
-                    sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval, offset + 1000) });
-                } else if (ids.length > 1) {
-                    ids.pop();
-                    sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
                 } else {
-                    document.getElementById("progress").style.display = "none";
-                    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-                        document.getElementById("controls").style.margin = "0 auto";
-                    } else {
-                        document.getElementById("controls").style.margin = "0 0 0 0";
-                    }
-                    create_table(infos);
-                    create_age_chart(ages);
-                    create_sex_chart(sexes);
-                    user_ids_to_txt = [... new Set(user_ids)].join('\r\n');
-                    document.getElementById('page').style.display = "block";
+                    ages['AgeUnknown'] += 1;
                 }
-            });
-        });
-    }
-
-    function create_table(infos) {
-        let table = document.createElement("table");
-
-        let thead = document.createElement("thead");
-        table.appendChild(thead);
-
-        let headerRow = document.createElement("tr");
-        thead.appendChild(headerRow);
-
-        let headerCell1 = document.createElement("th");
-        headerCell1.textContent = "№";
-        headerRow.appendChild(headerCell1);
-
-        let headerCell2 = document.createElement("th");
-        headerCell2.textContent = "Название группы";
-        headerRow.appendChild(headerCell2);
-
-        let headerCell3 = document.createElement("th");
-        headerCell3.textContent = "Ссылка";
-        headerRow.appendChild(headerCell3);
-
-        let headerCell4 = document.createElement("th");
-        headerCell4.textContent = "Количество пользователей";
-        headerRow.appendChild(headerCell4);
-
-        let tbody = document.createElement("tbody");
-        table.appendChild(tbody);
-
-        for (const [key, info] of Object.entries(infos)) {
-            let row = document.createElement("tr");
-            let cell1 = document.createElement("td");
-            cell1.textContent = info["index"]
-            row.appendChild(cell1);
-
-            let cell2 = document.createElement("td");
-            cell2.textContent = info["name"];
-            row.appendChild(cell2);
-
-            let cell3 = document.createElement("td");
-            let link = document.createElement("a");
-            link.href = info["url"];
-            link.textContent = "Ссылка";
-            cell3.appendChild(link);
-            row.appendChild(cell3);
-
-            let cell4 = document.createElement("td");
-            cell4.textContent = info["count"];
-            row.appendChild(cell4);
-
-            tbody.appendChild(row);
-        }
-
-        let totalUsersCount = infos.reduce(function(sum, row) {
-            return sum + row.count;
-        }, 0);
-
-        let totalRow = document.createElement("tr");
-        totalRow.className = 'last-row';
-        let totalCell = document.createElement("td");
-        totalCell.textContent = "Всего пользователей: ";
-        totalCell.colSpan = 3;
-        totalRow.appendChild(totalCell);
-        totalCell = document.createElement("td");
-        totalCell.textContent = totalUsersCount;
-        totalCell.colSpan = 1;
-        totalRow.appendChild(totalCell);
-        tbody.appendChild(totalRow);
-
-        let tableContainer = document.getElementById("table-container");
-        tableContainer.appendChild(table);
-    }
-
-    function get_groups_info(ids, user_ids, ages, sexes, infos, interval) {
-        VK.Api.call('groups.getById', { v: '5.154', group_ids: ids.join(", "), fields: 'members_count' }, function (r) {
-            let all_members = 0;
-            for (const [key, value] of Object.entries(r.response.groups)) {
-                all_members += value["members_count"];
-                infos.push({ index: parseInt(key) + 1, name: value["name"], count: value["members_count"], url: "https://vk.com/" + value["screen_name"] });
             }
-            sleep(interval).then(() => { get_members(ids, user_ids, ages, sexes, infos, all_members, interval) });
+            let all = sexes['M'] + sexes['W'] + sexes['U'];
+            document.getElementById("progress").innerHTML = "Идет загрузка данных: " + String(Math.floor(all * 1000 / people_count) / 10) + "%";
+            if (offset < res.response.count) {
+                sleep(interval).then(() => { get_group_members(ids, user_ids, ages, sexes, infos, people_count, interval, offset + 1000) });
+            } else if (ids.length > 1) {
+                ids.pop();
+                sleep(interval).then(() => { get_group_members(ids, user_ids, ages, sexes, infos, people_count, interval) });
+            } else {
+                document.getElementById("progress").style.display = "none";
+                let controls = document.getElementById("controls");
+                controls.classList.remove('controls_when_chart_invisible');
+                controls.classList.remove('controls_when_chart_visible');
+                controls.classList.add('controls_when_chart_visible');
+                document.getElementById("table-container").innerHTML = create_table(infos);
+                create_age_chart(ages);
+                create_sex_chart(sexes);
+                user_ids_to_txt = [... new Set(user_ids)].join('\r\n');
+                document.getElementById('page').style.display = "block";
+            }
         });
+    });
+}
+
+/**
+ * Get all the group infos
+ * 
+ * @param {array} ids — group ids
+ * @param {array} user_ids — list of the all user ids, out
+ * @param {dict} ages — list of ages of the group's members, out
+ * @param {dict} sexes — list of sexes of the group's members, out
+ * @param {dict} infos — raw data
+ * @param {number} interval — delay interval
+ */
+function get_groups_info(ids, user_ids, ages, sexes, infos, interval) {
+    VK.Api.call('groups.getById', { v: '5.154', group_ids: ids.join(", "), fields: 'members_count' }, function (r) {
+        let people_count = 0;
+        for (const [key, value] of Object.entries(r.response.groups)) {
+            people_count += value["members_count"];
+            infos.push({ index: parseInt(key) + 1, name: value["name"], count: value["members_count"], url: "https://vk.com/" + value["screen_name"] });
+        }
+        sleep(interval).then(() => { get_group_members(ids, user_ids, ages, sexes, infos, people_count, interval) });
+    });
+}
+
+// Handlers
+
+// api-id-dialog sumbit button onclick
+function submit_api_id() {
+    let api_id = document.getElementById("api_id_input").value;
+    document.getElementById("api-id-dialog").style.display = "none";
+
+    VK.Auth.getLoginStatus(function(response) {
+        if (response.status === 'connected') {
+            show_control_buttons();
+        } else {
+            VK.Auth.login(show_control_buttons);
+        }
+    });                
+}
+
+// login button onclick
+function login_clicked() {
+    let modal = document.getElementById("api-id-dialog");
+    let close_btn = document.getElementsByClassName("close-btn")[0];
+    modal.style.display = "block";
+    close_btn.onclick = function() {
+        modal.style.display = "none";
     }
-
-    function is_id(id) {
-        const is_num = /^\d+$/;
-        return is_num.test(id);
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
     }
+}
 
-    function is_valid_group_id(id) {
-        if (is_id(id)) {
-            return true;
+// logout button onclick
+function logout_clicked() {
+    VK.Auth.logout(function (response) {
+        document.getElementById("page").style.display = "none";
+        let controls = document.getElementById("controls");
+        controls.classList.remove('controls_when_chart_invisible');
+        controls.classList.remove('controls_when_chart_visible');
+        controls.classList.add('controls_when_chart_invisible');
+        hide_control_buttons();
+    });
+}
+
+// save_pdf button onclick
+function save_pdf_clicked() {
+    let element = document.getElementById('page');
+    const {width,height} = element.getBoundingClientRect();
+    let opt = {
+        margin:       1,
+        filename:     'myfile.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { dpi: 192, letterRendering: true },
+        jsPDF:        { format: [width, height], unit: 'px' }
+    };
+    html2pdf().set(opt).from(element).save()        
+}
+
+// save_txt button onclick
+function save_txt_clicked() {
+    const link = document.createElement("a");
+    const file = new Blob([user_ids_to_txt], { type: 'text/plain' });
+    link.href = URL.createObjectURL(file);
+    link.download = "ids.txt";
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+// get_data button onclick
+function get_data_clicked() {
+    remove_charts();
+    let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
+    let sexes = { 'U': 0, 'W': 0, 'M': 0 };
+    let infos = [];
+    let user_ids = [];
+    user_ids_to_txt = '';
+    document.getElementById('page').style.display = "none";
+    let ids = [];
+    document.getElementById("vkIds").value.split(/\s+/).filter(elm => elm).forEach(function (url) {
+        ids.push(url.split('/').slice(-1)[0].trim());
+    });
+    let wrong_ids = [];
+    ids.forEach(function (id) {
+        if (!is_valid_group_id(id)) {
+            print(id);
+            wrong_ids.push(id);
         }
+    });
+    if (wrong_ids.length === 0) {
+        document.getElementById("progress").innerHTML = "Идет загрузка данных: 0%";
+        document.getElementById("progress").style.display = "block";
+        let interval = parseInt(document.getElementById("vkInterval").value);
+        get_groups_info(ids, user_ids, ages, sexes, infos, interval);
+    } else {
+        alert(`Невалидные идентификаторы групп: ${wrong_ids.join(', ')}`);
+    }
+}
 
-        if (id.length < 5 || id.length > 32) {
-            return false;
-        }
+// Helper functions
 
-        const regex = /^[a-zA-Z0-9_]+$/;
-        if (!regex.test(id)) {
-            return false;
-        }
+/**
+ * Calculate user's age by date
+ * 
+ * @param {number} day — day of birth
+ * @param {number} month — month of birth
+ * @param {number} year — year of birth
+ * @returns {number}
+ *
+ */  
+function calc_age(day, month, year) {
+    const birthdate = new Date(`${year}-${month}-${day}`);
+    const today = new Date();
+    const one_or_zero = (today.getMonth() < birthdate.getMonth()) ||
+                        (today.getMonth() === birthdate.getMonth() &&
+                        today.getDate() < birthdate.getDate());
+    const year_difference = today.getFullYear() - birthdate.getFullYear();
+    const age = year_difference - one_or_zero;
+    return age;
+}
 
-        const firstChar = id.charAt(0);
-        const firstCharRegex = /^[a-zA-Z]+$/;
-        if (!firstCharRegex.test(firstChar)) {
-            return false;
-        }
+/**
+ * Delay between requests
+ * 
+ * @param {number} ms — delay in milliseconds
+ * @returns {Promise}
+ *
+ */
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
+/**
+ * Group ID validation
+ * 
+ * @param {String} id — group ID
+ * @returns {bool}
+ *
+ */
+function is_valid_group_id(id) {
+    const re = /^\d+$/;
+    if (re.test(id)) {
         return true;
     }
 
-    $('#vkGetData').on('click', function () {
-        remove_charts();
-        let ages = {'Age18': 0, 'Age25': 0, 'Age35': 0, 'Age45': 0, 'Age55': 0, 'AgeOther': 0, 'AgeUnknown': 0};
-        let sexes = { 'U': 0, 'W': 0, 'M': 0 };
-        let infos = [];
-        let user_ids = [];
-        user_ids_to_txt = '';
-        document.getElementById('page').style.display = "none";
-        let ids = [];
-        document.getElementById("vkIds").value.split(/\s+/).filter(elm => elm).forEach(function (url) {
-            ids.push(url.split('/').slice(-1)[0].trim());
-        });
-        let wrong_ids = [];
-        ids.forEach(function (id) {
-            if (!is_valid_group_id(id)) {
-                print(id);
-                wrong_ids.push(id);
-            }
-        });
-        if (wrong_ids.length === 0) {
-            document.getElementById("progress").innerHTML = "Идет загрузка данных: 0%";
-            document.getElementById("progress").style.display = "block";
-            let interval = parseInt(document.getElementById("vkInterval").value);
-            get_groups_info(ids, user_ids, ages, sexes, infos, interval);
-        } else {
-            alert(`Невалидные идентификаторы групп: ${wrong_ids.join(', ')}`);
-        }
-    });    
-});
+    if (id.length < 5 || id.length > 32) {
+        return false;
+    }
 
+    const regex = /^[a-zA-Z0-9_]+$/;
+    if (!regex.test(id)) {
+        return false;
+    }
+
+    const firstChar = id.charAt(0);
+    const firstCharRegex = /^[a-zA-Z]+$/;
+    if (!firstCharRegex.test(firstChar)) {
+        return false;
+    }
+
+    return true;
+}
 </script>
 
 </body>
